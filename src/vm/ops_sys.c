@@ -93,7 +93,7 @@ static int Opcode_Sys_Random(Thread_t* t) // 80 02: n → v
 	return 0;
 }
 
-static int Opcode_Sys_GetTicks(Thread_t* t) // 80 04: → ms (since boot)
+static int Opcode_Sys_GetTicks(Thread_t* t) // 80 04: → ms (GetTicks)
 {
 	Thread_Push(t, GetTicks());
 	return 0;
@@ -462,6 +462,17 @@ static int Opcode_Sys_SetAttr(Thread_t* t) // 80 2D: path, attr → ok
 	return 0;
 }
 
+/* move or rename `existing` to `newPath` (MoveFile: it fails when
+ * newPath exists); both are used as given, relative to the game
+ * directory; the destination is the operand pushed first */
+static int Opcode_Sys_MoveFile(Thread_t* t) // 80 27 (1.494 on): newPath, existing → ok
+{
+	const char* existing = (const char*)PopPtr(t);
+	const char* newPath = (const char*)PopPtr(t);
+	Thread_Push(t, (uint32_t)OS_FileMove(existing, newPath));
+	return 0;
+}
+
 // copy `src` over `dst`, clearing dst's read-only attribute first so that the copy may overwrite it
 static int Opcode_Sys_CopyFile(Thread_t* t) // 80 2F: dst, src → ok
 {
@@ -782,11 +793,12 @@ static int Opcode_Sys_LoadProgram(Thread_t* t) // 80 40: arc, name → base
 
 /* drop the module loaded last and push the number of modules left
  * (0x80000001 when there was none); unloading the main program itself,
- * which leaves 0, is a script error */
+ * which leaves 0, is a script error - except in a thread of "81 44",
+ * whose main program is its lender's, so its own modules may all go */
 static int Opcode_Sys_UnloadProgram(Thread_t* t) // 80 41: → n
 {
 	uint32_t n = Thread_UnloadLastModule(t);
-	if(n == 0)
+	if(n == 0 && !t->lender)
 		ScriptError(MSG_MAIN_PROGRAM_UNLOADED, t);
 	Thread_Push(t, n);
 	return 0;
@@ -1997,6 +2009,54 @@ static int Opcode_Sys_MachineKeyXor(Thread_t* t) // 80 EF: x → v
 	return 0;
 }
 
+/* 80 EC .. EE from 1.636 on (the numbers of the registration opcodes above,
+ * which 1.616 dropped): the game's plug-in DLLs.  The original loads the
+ * DLL named by the script from the game directory (LoadLibrary), looks up
+ * its export "CallFunctionForEthornell" (1.640 on also hands the main
+ * window to "SetWindowHandleOfEthornell") and keeps it on a list under a
+ * counter id; "80 EE" calls the export with a function number and two
+ * arguments.  The ipl._bp of Sen no Hatou has such a load
+ * (OnlineStorageManager.dll) behind a constant false branch.
+ * No plug-in can be loaded here, so every call answers what the original
+ * does for a DLL that is not there: 1 for the load (LoadLibrary failed),
+ * 3 (no such plug-in) for the others; the out-values are left alone. */
+static int Opcode_Sys_PluginLoad(Thread_t* t) // 80 EC (1.636 on): out, name → code
+{
+	PopPtr(t); // the DLL's file name, in the game directory
+	PopPtr(t); // where the plug-in's id goes: 0 ok, 1 not loaded, 2 no export
+	Thread_Push(t, 1);
+	return 0;
+}
+
+static int Opcode_Sys_PluginFree(Thread_t* t) // 80 ED (1.636 on): id → code
+{
+	Thread_Pop(t);
+	Thread_Push(t, 3); // 0 freed, 3 no such plug-in
+	return 0;
+}
+
+/* `kinds` says how a and b were pushed: bits 16..31 set means a is a
+ * pointer, bits 0..15 set that b is; the export is called as fn(no, b, a)
+ * and its result stored to *out, the code being 0 for a zero result, 4 for
+ * any other, 3 for no such plug-in */
+static int Opcode_Sys_PluginCall(Thread_t* t) // 80 EE (1.636 on): out, id, no, b, a, kinds → code
+{
+	uint32_t kinds = Thread_Pop(t);
+	if(kinds & 0xffff0000u)
+		PopPtr(t);
+	else
+		Thread_Pop(t);
+	if(kinds & 0xffffu)
+		PopPtr(t);
+	else
+		Thread_Pop(t);
+	Thread_Pop(t); // the function number
+	Thread_Pop(t); // the plug-in's id
+	PopPtr(t);     // where the export's result goes
+	Thread_Push(t, 3);
+	return 0;
+}
+
 // -------------------------------------------------------------------------
 // 80 F0 .. 80 FF : the installer
 // -------------------------------------------------------------------------
@@ -2272,6 +2332,7 @@ void Vm_Optable80Init(void)
 		{0x21, Opcode_Sys_Gfree, GEN_FIRST, GEN_LAST},
 		{0x24, Opcode_Sys_CountFiles, GEN_FIRST, GEN_LAST},
 		{0x25, Opcode_Sys_ListFiles, GEN_FIRST, GEN_LAST},
+		{0x27, Opcode_Sys_MoveFile, GEN_1_494, GEN_LAST},
 		{0x28, Opcode_Sys_Mkdir, GEN_FIRST, GEN_LAST},
 		{0x29, Opcode_Sys_Rmdir, GEN_FIRST, GEN_LAST},
 		{0x2A, Opcode_Sys_IsDir, GEN_FIRST, GEN_LAST},
@@ -2408,10 +2469,13 @@ void Vm_Optable80Init(void)
 		{0xE3, Opcode_Sys_ShellOpen, GEN_FIRST, GEN_LAST},
 		{0xE8, Opcode_Sys_GetProductName, GEN_FIRST, GEN_LAST},
 		{0xE9, Opcode_Sys_HashFile, GEN_1_69_472, GEN_LAST},
-		{0xEC, Opcode_Sys_CheckRegistration, GEN_FIRST, GEN_LAST},
-		{0xED, Opcode_Sys_ReadComap, GEN_FIRST, GEN_LAST},
-		{0xEE, Opcode_Sys_MachineKey, GEN_FIRST, GEN_LAST},
-		{0xEF, Opcode_Sys_MachineKeyXor, GEN_FIRST, GEN_LAST},
+		{0xEC, Opcode_Sys_CheckRegistration, GEN_FIRST, GEN_1_616}, // dropped by 1.616; the numbers return in 1.636 for the plug-ins
+		{0xED, Opcode_Sys_ReadComap, GEN_FIRST, GEN_1_616},
+		{0xEE, Opcode_Sys_MachineKey, GEN_FIRST, GEN_1_616},
+		{0xEF, Opcode_Sys_MachineKeyXor, GEN_FIRST, GEN_1_616},
+		{0xEC, Opcode_Sys_PluginLoad, GEN_1_636, GEN_LAST},
+		{0xED, Opcode_Sys_PluginFree, GEN_1_636, GEN_LAST},
+		{0xEE, Opcode_Sys_PluginCall, GEN_1_636, GEN_LAST},
 		{0xF0, Opcode_Sys_InstallDialogA, GEN_FIRST, GEN_LAST},
 		{0xF1, Opcode_Sys_InstallDialogB, GEN_FIRST, GEN_LAST},
 		{0xF2, Opcode_Sys_InstallRun, GEN_FIRST, GEN_LAST},

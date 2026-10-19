@@ -35,7 +35,7 @@
 
 /* the boot thread's code and data areas (the SpawnThread of the boot
  * program): 256 KB each up to build 444, 512 KB of code
- * from build 472, 8 MB of code and 4 MB of data from 1.653 */
+ * from build 472, 8 MB of code and 4 MB of data from 1.636 */
 #define BOOT_A   0x40000, 0x40000
 #define BOOT_B   0x80000, 0x40000
 #define BOOT_C   0x800000, 0x400000
@@ -58,7 +58,8 @@ static const EngineProfile_t kDefaultProfiles[GEN_COUNT] = {
 	{"1.588", GEN_1_588, 172, LAYOUT_D, BOOT_B},
 	{"1.599", GEN_1_599, 172, LAYOUT_D, BOOT_B},
 	{"1.616", GEN_1_616, 172, LAYOUT_D, BOOT_B},
-	{"1.640", GEN_1_640, 172, LAYOUT_D, BOOT_B},
+	{"1.636", GEN_1_636, 172, LAYOUT_D, BOOT_C},
+	{"1.640", GEN_1_640, 172, LAYOUT_D, BOOT_C},
 	{"1.653", GEN_1_653, 172, LAYOUT_D, BOOT_C},
 	{"1.654", GEN_1_654, 172, LAYOUT_D, BOOT_C},
 	{"1.659", GEN_1_659, 172, LAYOUT_D, BOOT_C},
@@ -178,6 +179,7 @@ static const struct
 	{"SekaiToSekaiNoMannakaDe", "1.588", NULL},
 	{"UnmeisenjouNoPhi", "1.599", NULL},
 	{"KodomoNoAsobi", "1.616", NULL},
+	{"SenNoHatouTsukisomeNoKouki", "1.636", NULL},
 	{"Tayutama2AS", "1.640", NULL},
 	{"WakabaironoQuartet", "1.653", NULL},
 	{"NekoTsukuSakura", "1.654", NULL},

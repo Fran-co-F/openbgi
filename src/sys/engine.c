@@ -226,6 +226,7 @@ void Engine_Shutdown(void)
 	Gfx_Destroy(); // Gfx, BmpMgr, ArcMgr, pools
 	SysArea_Shutdown();
 	Sound_Shutdown();
+	FileAcc_CloseAll(); // the files "81 28" left open
 	DynMem_FreeAll();
 	UserOp_Clear();
 	History_Reset(0);
@@ -245,6 +246,7 @@ void Engine_Shutdown(void)
 	Loader_Stop();
 	EngineLock_Delete();
 	FileSearch_Clear();
+	Error_FreeKept(); // the error message "81 6A" kept (1.547 on)
 }
 
 // ---- the reimplementation's own command-line options ---------------------------

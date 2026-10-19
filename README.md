@@ -44,6 +44,7 @@ The games we have been working on, with the engine build each one needs
 | Sekai to Sekai no Mannaka de | `SekaiToSekaiNoMannakaDe` | 1.588 | Very playable |
 | Unmei Senjou no Phi | `UnmeisenjouNoPhi` | 1.599 | Very playable |
 | Kodomo no Asobi | `KodomoNoAsobi` | 1.616 | Playable |
+| Sen no Hatou, Tsukisome no Kouki (trial) | `SenNoHatouTsukisomeNoKouki` | 1.636 | Testing in progress |
 | Tayutama 2 -After Stories- | `Tayutama2AS` | 1.640 | Playable |
 | Wakabairo no Quartet | `WakabaironoQuartet` | 1.653 | Playable |
 | Nekotsuku, Sakura. | `NekoTsukuSakura` | 1.654 | Somewhat playable, glitchy |
@@ -64,8 +65,9 @@ The games we have been working on, with the engine build each one needs
 
 ### Testing scope
 
-Only Lump of Sugar games have been tested so far.  We are interested in
-testing other BGI-based games: if you have one, tell us how it goes in
+Apart from the trial of Sen no Hatou, Tsukisome no Kouki (August), whose
+build is surveyed but not yet playable, only Lump of Sugar games have been
+tested so far.  We are interested in testing other BGI-based games: if you have one, tell us how it goes in
 our [Discord](https://discord.gg/3zFTJWUNt7).
 
 Testing happens on a case-by-case basis, and to exercise newly implemented opcodes and subsystems. The is currently no extensive testkit again individual games, except booting up a game and actually playing it.
