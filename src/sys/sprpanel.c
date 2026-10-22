@@ -60,6 +60,9 @@ typedef struct SpritePanel
 #define SWING_FULL_TURN 23592960 // 360 degrees in 16.16 (360 << 16)
 
 static void SpritePanel_Destroy(ObjProc_t* p);
+static int SpritePanel_OnMessage(ObjProc_t* base, int n, const uint32_t* data);
+static void SpritePanel_ShowSub(SpritePanel_t* sp, int sub, int no);
+static int SpriteIsFocused(ButtonPanel_t* p, int g, int i);
 static void SpritePanel_Animate(ButtonPanel_t* p);
 static int SpritePanel_FinishOnDecide(ButtonPanel_t* p);
 static int SpritePanel_SetFocus(ButtonPanel_t* p, int btn, int force);
@@ -72,9 +75,47 @@ static void SpritePanel_Stop(ButtonPanel_t* p);
 static void SpritePanel_ClickOutside(ButtonPanel_t* p);
 
 static const PanelVtbl_t SpritePanel_Vtbl = {
-	{SpritePanel_Destroy, ButtonPanel_Poll, ButtonPanel_OnMessage}, SpritePanel_Animate, SpritePanel_FinishOnDecide,
+	{SpritePanel_Destroy, ButtonPanel_Poll, SpritePanel_OnMessage}, SpritePanel_Animate, SpritePanel_FinishOnDecide,
 	SpritePanel_SetFocus, SpritePanel_GetBitmap, SpritePanel_SetSelection, SpritePanel_CanDecide,
 	SpritePanel_DecideAt, SpritePanel_Decide, SpritePanel_Stop, SpritePanel_ClickOutside};
+
+/* The messages of a sprite panel: those of the button panel, plus message
+ * 0x10000004 {group, index, slot, bitmap} (n = 5), which stores `bitmap` as
+ * picture `slot` of button (group, index) - 0 normal, 1 focus, 2 selected,
+ * 3 selected and focused, the fields of SpriteButton_t in that order - and
+ * shows the button's picture again in its present state.  The Config screen
+ * of Sakura no Uta redraws the ten wings of a slider this way after a click,
+ * and the voice toggles of the characters.  The original (BGI.exe 1.614.1,
+ * the vtable slot behind this message) range-checks the button, ignores a
+ * `slot` of 4 or more as far as the pictures go, and otherwise does as
+ * described.  1 when the button exists. */
+static int SpritePanel_OnMessage(ObjProc_t* base, int n, const uint32_t* data)
+{
+	SpritePanel_t* sp = (SpritePanel_t*)base;
+	ButtonPanel_t* p = &sp->b;
+	if(n == 5 && data[0] == 0x10000004)
+	{
+		int g = (int)data[1], i = (int)data[2];
+		uint32_t slot = data[3];
+		int32_t no;
+		SpriteButton_t* b;
+		if(g < 0 || g >= p->groupCount || i < 0 || i >= (int)p->groups[g].count || !sp->states[g][i].hasBitmap)
+			return 0;
+		b = &SBUTTONS(&SGROUPS(sp)[g])[i];
+		switch(slot)
+		{
+			case 0: b->bmpNormal = (int32_t)data[4]; break;
+			case 1: b->bmpFocus = (int32_t)data[4]; break;
+			case 2: b->bmpSelected = (int32_t)data[4]; break;
+			case 3: b->bmpSelFocus = (int32_t)data[4]; break;
+			default: return 0;
+		}
+		PANEL_VT(p)->getBitmap(p, &no, g, i, SpriteIsFocused(p, g, i), p->groups[g].selected == i);
+		SpritePanel_ShowSub(sp, sp->states[g][i].sub, no);
+		return 1;
+	}
+	return ButtonPanel_OnMessage(base, n, data);
+}
 
 // ========================================================================
 // construction
