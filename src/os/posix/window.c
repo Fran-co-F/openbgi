@@ -19,6 +19,9 @@
  * engine's drop_file event is never raised - and the IME status window.
  */
 #include "x11_internal.h"
+#ifdef BGI_HAVE_XRANDR
+#include <X11/extensions/Xrandr.h>
+#endif
 
 // ---- the main window ---------------------------------------------------------------------------
 
@@ -34,7 +37,8 @@ static int gFsModeW, gFsModeH;                      // the display mode (full sc
 static int gMapOn;                                  // the mode is scaled into the window: full screen, or a client area of another size
 static double gFsScale = 1.0;                       // mode -> window pixels
 static int gFsOffX, gFsOffY;                        // where the scaled mode sits in the window
-static int gScreenW, gScreenH;                      // the screen in pixels (OS_ScreenSize)
+static int gScreenW, gScreenH;                      // the screen in pixels (OS_ScreenSize): the monitor of the window
+static int gScreenX, gScreenY;                      // where that monitor sits on the X screen
 int gX11CloseRequested, gX11QuitPosted;             // OS_WindowClose / OS_PostQuit, delivered by the next pump
 uint8_t gX11Keys[256];                              // GetAsyncKeyState emulation, indexed by virtual key
 int gX11LastClickBtn = -1;                          // double-click detection: the last press's button, time and position
@@ -427,6 +431,55 @@ int OS_FrameTop(void)
 	return gX11FrameT;
 }
 
+/* the monitor full screen goes on: the one holding the centre of the window
+ * (the primary one before the window exists), so that two monitors side by
+ * side are not one 4480 x 1440 "screen" with the picture across the seam.
+ * Without XRandR, or when it lists no monitor, the whole X screen. */
+static void PickMonitor(void)
+{
+	gScreenX = gScreenY = 0;
+	gScreenW = DisplayWidth(gX11Dpy, gX11Screen);
+	gScreenH = DisplayHeight(gX11Dpy, gX11Screen);
+#ifdef BGI_HAVE_XRANDR
+	{
+		int n = 0, i, best = -1, cx = -1, cy = -1;
+		XRRMonitorInfo* mon = XRRGetMonitors(gX11Dpy, gX11Root, True, &n);
+		if(!mon)
+			return;
+		if(gX11Win)
+		{
+			Window child;
+			int ox = 0, oy = 0;
+			unsigned ww = 0, wh = 0, bw, depth;
+			Window root;
+			int x, y;
+			if(XGetGeometry(gX11Dpy, gX11Win, &root, &x, &y, &ww, &wh, &bw, &depth) &&
+				XTranslateCoordinates(gX11Dpy, gX11Win, gX11Root, 0, 0, &ox, &oy, &child))
+			{
+				cx = ox + (int)ww / 2;
+				cy = oy + (int)wh / 2;
+			}
+		}
+		for(i = 0; i < n && cx >= 0; i++)
+			if(cx >= mon[i].x && cx < mon[i].x + mon[i].width && cy >= mon[i].y && cy < mon[i].y + mon[i].height)
+				best = i;
+		for(i = 0; i < n && best < 0; i++)
+			if(mon[i].primary)
+				best = i;
+		if(best < 0 && n > 0)
+			best = 0;
+		if(best >= 0 && mon[best].width > 0 && mon[best].height > 0)
+		{
+			gScreenX = mon[best].x;
+			gScreenY = mon[best].y;
+			gScreenW = mon[best].width;
+			gScreenH = mon[best].height;
+		}
+		XRRFreeMonitors(mon);
+	}
+#endif
+}
+
 // the screen in pixels (also refreshes the cached size); 1024 x 768 without a display
 void OS_ScreenSize(int* w, int* h)
 {
@@ -436,8 +489,7 @@ void OS_ScreenSize(int* w, int* h)
 		*h = 768;
 		return;
 	}
-	gScreenW = DisplayWidth(gX11Dpy, gX11Screen);
-	gScreenH = DisplayHeight(gX11Dpy, gX11Screen);
+	PickMonitor();
 	*w = gScreenW;
 	*h = gScreenH;
 }
@@ -790,7 +842,7 @@ void OS_WindowSetFullscreen(int modeW, int modeH)
 		SetNetWmFullscreen(1);
 	else
 		XChangeProperty(gX11Dpy, gX11Win, gX11AtomNetWmState, XA_ATOM, 32, PropModeReplace, (unsigned char*)&gX11AtomNetWmStateFs, 1);
-	XMoveResizeWindow(gX11Dpy, gX11Win, 0, 0, (unsigned)gScreenW, (unsigned)gScreenH);
+	XMoveResizeWindow(gX11Dpy, gX11Win, gScreenX, gScreenY, (unsigned)gScreenW, (unsigned)gScreenH);
 	gOriginKnown = 0;
 	XFlush(gX11Dpy);
 	X11_FillLetterbox();

@@ -93,6 +93,11 @@ else
     CFLAGS += -DBGI_HAVE_ALSA $(shell $(PKG_CONFIG) --cflags alsa)
     LDLIBS += $(shell $(PKG_CONFIG) --libs alsa)
   endif
+  # XRandR tells the monitors apart; without it the whole X screen (every monitor) is "the screen"
+  ifneq ($(shell $(PKG_CONFIG) --exists xrandr 2>/dev/null && echo yes),)
+    CFLAGS += -DBGI_HAVE_XRANDR $(shell $(PKG_CONFIG) --cflags xrandr)
+    LDLIBS += $(shell $(PKG_CONFIG) --libs xrandr)
+  endif
   # fontconfig resolves the face names; without it well-known font files are searched
   ifneq ($(shell $(PKG_CONFIG) --exists fontconfig 2>/dev/null && echo yes),)
     CFLAGS += -DBGI_HAVE_FONTCONFIG $(shell $(PKG_CONFIG) --cflags fontconfig)
