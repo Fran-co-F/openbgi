@@ -253,13 +253,17 @@ static int SpriteStartBitmap(const SpriteButton_t* b, int i, int selected)
 	return no;
 }
 
-/* Whether a button gets a sub-sprite: from 1.588 on only the buttons with
- * `shown` set (the earlier builds draw them all in SpritePanel_Paint, and
- * the enabled or shown ones in SpritePanel_Start), from 1.640 on also not
- * those with flag 0x40. */
+/* Whether a button gets a sub-sprite: from 1.573 on only the buttons with
+ * `shown` set, whether or not they are enabled (read from BGI.exe 1.571.1,
+ * Himawari no Kyoukai to Nagai Natsuyasumi, 0x43f8aa: the bitmap is looked
+ * up only when `shown` is not 0; a button with `shown` 0 stays hidden even
+ * when enabled, which is how a script swaps one set of menu entries for
+ * another in the same places).  The earlier builds draw them all in
+ * SpritePanel_Paint, and the enabled or shown ones in SpritePanel_Start;
+ * from 1.640 on also not those with flag 0x40. */
 static int SpriteIsDrawn(const SpriteButton_t* b)
 {
-	if(gEngine->gen >= GEN_1_588 && !b->shown)
+	if(gEngine->gen >= GEN_1_573 && !b->shown)
 		return 0;
 	if(gEngine->gen >= GEN_1_640 && (b->flags & 0x40))
 		return 0;
@@ -441,8 +445,8 @@ uint32_t SpritePanel_Start(ButtonPanel_t* p, const SpriteDesc_t* d)
 			int ok;
 			memset(&st[i], 0, sizeof st[i]);
 			ob[i] = sb[i];
-			// before 1.588 a button is drawn when it is enabled or shown, from 1.588 on SpriteIsDrawn decides
-			ok = (gEngine->gen >= GEN_1_588 ? SpriteIsDrawn(&sb[i]) : (sb[i].enabled || sb[i].shown)) &&
+			// before 1.573 a button is drawn when it is enabled or shown, from 1.573 on SpriteIsDrawn decides
+			ok = (gEngine->gen >= GEN_1_573 ? SpriteIsDrawn(&sb[i]) : (sb[i].enabled || sb[i].shown)) &&
 				BmpMgr_GetInfo(gPanelBmpMgr, &bmp, no);
 			info->hasBitmap = ok;
 			info->group = g;
