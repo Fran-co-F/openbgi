@@ -124,6 +124,10 @@ void X11_BlitSurface(const X11Dc_t* dc, int dstX, int dstY, int dstW, int dstH, 
 		wy0 = X11_ToWinY(dstY);
 		wx1 = X11_ToWinX(dstX + dstW);
 		wy1 = X11_ToWinY(dstY + dstH);
+		/* the picture is scaled onto the window by the full-screen mapping: filter it
+		 * (a plain BitBlt would otherwise show nearest-neighbour pixels) */
+		if(gMapOn && (wx1 - wx0 != srcW || wy1 - wy0 != srcH))
+			smooth = 1;
 		if(clip)
 		{
 			int l = X11_ToWinX(clip[0]), t = X11_ToWinY(clip[1]), r = X11_ToWinX(clip[2]), b = X11_ToWinY(clip[3]);
@@ -256,7 +260,7 @@ void X11_BlitSurface(const X11Dc_t* dc, int dstX, int dstY, int dstW, int dstH, 
 				p01 = X11_SurfacePixel(s, sx1, sy0);
 				p10 = X11_SurfacePixel(s, sx0, sy1);
 				p11 = X11_SurfacePixel(s, sx1, sy1);
-#define CH(p, sh)     (((p) >> (sh)) & 0xff)
+#define CH(p, sh)     ((int)(((p) >> (sh)) & 0xff)) // signed: LERP's difference is negative when the next pixel is darker
 #define LERP(a, b, t) ((a) + ((((b) - (a)) * (t)) >> 8))
 				r = LERP(LERP(CH(p00, 16), CH(p01, 16), wx), LERP(CH(p10, 16), CH(p11, 16), wx), wy);
 				g = LERP(LERP(CH(p00, 8), CH(p01, 8), wx), LERP(CH(p10, 8), CH(p11, 8), wx), wy);
