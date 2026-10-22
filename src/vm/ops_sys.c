@@ -358,11 +358,14 @@ static int Opcode_Sys_Galloc(Thread_t* t) // 80 20: size → p
 	return 0;
 }
 
-// free a block of "80 20"; a pointer that is not one is a script error
+/* free a block of "80 20"; a pointer that is not one is a script error.
+ * 0 is accepted as a no-op: the save routine of userdata._bp (Sakura no
+ * Uta, 1.614) frees the string-table buffer it only allocates when the
+ * table is not empty */
 static int Opcode_Sys_Gfree(Thread_t* t) // 80 21: p → ok
 {
 	uint32_t p = Thread_Pop(t);
-	int ok = GFree(p);
+	int ok = p == 0 ? 1 : GFree(p);
 	if(!ok)
 		SYS_ERROR(t, MSG_GFREE_BAD_ADDRESS, p);
 	Thread_Push(t, (uint32_t)ok);
