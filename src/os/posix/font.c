@@ -540,6 +540,16 @@ OsFont_t* OS_FontOpen(const char* face, int height, int width, int bold, int ita
 	// vertical: em size such that ascent + descent == height
 	f->emH = (FT_F26Dot6)(((int64_t)height * 64 * ft->units_per_EM + cell / 2) / cell);
 	f->ascent = (int)(((int64_t)height * asc + cell / 2) / cell);
+	/* MS Gothic / Mincho have cell == em (ascent + descent = 1 em).  A substitute
+	 * with a taller line box (Noto CJK: about 1.45 em) would be shrunk to fit the
+	 * cell while the width is still fixed by the full-width advance, which draws
+	 * the glyphs wide and flat: the em is the height instead, the baseline where
+	 * MS Gothic puts it. */
+	if(cell > (FT_Pos)ft->units_per_EM + (FT_Pos)ft->units_per_EM / 20)
+	{
+		f->emH = (FT_F26Dot6)height * 64;
+		f->ascent = (height * 86 + 50) / 100;
+	}
 	/* horizontal: a full-width glyph (U+3042 "あ" as the specimen) must be
 	 * 2 * width pixels wide; a font without one is assumed to have
 	 * half-width characters of half an em */
