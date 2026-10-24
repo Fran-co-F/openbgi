@@ -53,6 +53,9 @@ extern int gMoviePlaying; // a movie is running (the window paints black, no sty
  * playback started (*outLength receives the length in ms), 0 otherwise.
  * A missing audio device or renderer is a script error. */
 int Movie_Play(int32_t* outLength, const char* path, int x, int y, int w, int h);
+/* "92 F0": play the movie stored uncompressed at byte `off` (`size` bytes) of
+ * the archive file `path`; the same results as Movie_Play.  ffmpeg only. */
+int Movie_PlayArc(int32_t* outLength, const char* path, uint32_t off, uint32_t size, int x, int y, int w, int h);
 int Movie_Stop(void); // 1 when there was a graph to release
 int Movie_IsPlaying(void);
 int Movie_SetVolume(uint32_t v);   // 0 .. 0x80; 0 for anything above
@@ -63,6 +66,8 @@ void Movie_Tick(void);             // every pass: the ffmpeg player's frame, and
  * player cannot play the file - always on POSIX.  Needs the ffmpeg
  * program (and ffprobe for the length) on the PATH or beside the binary. */
 int MovieFx_Start(const char* path, int x, int y, int w, int h, int32_t volume, int32_t* lengthMs);
+/* the same for a movie inside the archive file `path`, at `off` for `size` bytes (ffmpeg's "subfile" input) */
+int MovieFx_StartRange(const char* path, uint32_t off, uint32_t size, int x, int y, int w, int h, int32_t volume, int32_t* lengthMs);
 void MovieFx_Stop(void);
 int MovieFx_IsRunning(void);
 void MovieFx_SetVolume(int32_t volume);

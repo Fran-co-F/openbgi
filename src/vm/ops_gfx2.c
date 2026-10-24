@@ -640,8 +640,10 @@ static int Opcode_Gfx2_VideoTextureAttach(Thread_t* t)
 /* 92 F0 (1.494 on): arc, name, x, y, w, h → length
  * A movie played out of an archive (the original feeds DirectShow from
  * the entry through its own source filter) at (x, y) in a w x h area.
- * Without video playback the player answers 0 - as "90 F0" does here -
- * and the scripts move on; a non-positive size is still a script error. */
+ * Here ffmpeg reads the entry straight out of the archive file (its
+ * "subfile" input), so the entry must be stored, not DSC-packed; the player
+ * answers 0 when it cannot start, as "90 F0" does.  A non-positive size is
+ * a script error. */
 static int Opcode_Gfx2_MoviePlayArc(Thread_t* t)
 {
 	int h = (int)Thread_Pop(t), w = (int)Thread_Pop(t);
@@ -649,13 +651,18 @@ static int Opcode_Gfx2_MoviePlayArc(Thread_t* t)
 	const char* name = (const char*)PopPtr(t);
 	const char* arc = (const char*)PopPtr(t);
 	int32_t length = 0;
-	(void)x;
-	(void)y;
-	(void)name;
-	(void)arc;
 	if(w <= 0 || h <= 0)
 		GFX_ERROR(t, MSG_BAD_MOVIE_SIZE, w, h);
-	Thread_Push(t, (uint32_t)length);
+
+	char path[0x104];
+	uint32_t off = 0, size = 0;
+	while(!Arc_Locate(arc, name, path, &off, &size))
+	{
+		char msg[0x100];
+		sprintf(msg, MSG_MOVIE_NOT_FOUND, name);
+		RetryPrompt(msg);
+	}
+	Thread_Push(t, Movie_PlayArc(&length, path, off, size, x, y, w, h) ? (uint32_t)length : 0u);
 	return 0;
 }
 

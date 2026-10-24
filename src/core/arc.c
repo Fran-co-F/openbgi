@@ -191,6 +191,27 @@ static int FileSet_Contains(FileSet_t* s, const char* name)
 	return 0;
 }
 
+static int FileSet_Locate(FileSet_t* s, const char* name, char* path, uint32_t* off, uint32_t* size)
+{
+	char buf[0x104];
+	int i;
+	ArcEntry_t* e;
+
+	strcpy(buf, name);
+	SjisStrLwr(buf);
+	for(i = 0; i < s->count; i++)
+		if(strcmp(s->entries[i].name, buf) == 0)
+			break;
+	if(i >= s->count)
+		return 0;
+
+	e = &s->entries[i];
+	*size = e->size;
+	*off = s->dataBase + e->offset;
+	strcpy(path, s->name);
+	return 1;
+}
+
 // copies the archive name to dst (when given) if `name` exists; 1 when it does
 static int FileSet_ArcNameFor(FileSet_t* s, char* dst, const char* name)
 {
@@ -294,7 +315,7 @@ static uint32_t FileSet_Reset(FileSet_t* s, const char* path)
 
 static const FileSetVtbl_t FileSet_Vtbl = {
 	FileSet_Destroy, FileSet_Contains, FileSet_ArcNameFor,
-	FileSet_ReadRange, FileSet_SizeOf, FileSet_Matches, FileSet_Reset};
+	FileSet_ReadRange, FileSet_SizeOf, FileSet_Matches, FileSet_Reset, FileSet_Locate};
 
 // -------------------------------------------------------------------------
 // Archive manager chain
@@ -320,6 +341,15 @@ int ArcMgr_Exists(FileSet_t* mgr, const char* arc, const char* name)
 		return mgr->vt->contains(mgr, name);
 	n = ArcMgr_NextNode(mgr);
 	return n ? ArcMgr_Exists(n, arc, name) : 0;
+}
+
+int ArcMgr_Locate(FileSet_t* mgr, const char* arc, const char* name, char* path, uint32_t* off, uint32_t* size)
+{
+	FileSet_t* n;
+	if(mgr->vt->matches(mgr, arc))
+		return mgr->vt->locate(mgr, name, path, off, size);
+	n = ArcMgr_NextNode(mgr);
+	return n ? ArcMgr_Locate(n, arc, name, path, off, size) : 0;
 }
 
 /* copy the lower-cased path of the archive file that holds `name` to dst
@@ -537,6 +567,19 @@ static uint32_t FileSetList_ReadRange(FileSet_t* s, void* dst, const char* name,
 	return r;
 }
 
+static int FileSetList_Locate(FileSet_t* s, const char* name, char* path, uint32_t* off, uint32_t* size)
+{
+	char lpath[0x104];
+	int i;
+	for(i = 0; i < s->listCount; i++)
+	{
+		sprintf(lpath, "%s\\%s", s->dir, s->list[i]);
+		if(ArcMgr_Locate(s->inner, lpath, name, path, off, size))
+			return 1;
+	}
+	return 0;
+}
+
 /* the size from the first member that has the file; otherwise the last
  * member's error code (0x80000000 for an empty list) */
 static uint32_t FileSetList_SizeOf(FileSet_t* s, const char* name)
@@ -582,7 +625,7 @@ static uint32_t FileSetList_Reset(FileSet_t* s, const char* path)
 
 static const FileSetVtbl_t FileSetList_Vtbl = {
 	FileSetList_Destroy, FileSetList_Contains, FileSetList_ArcNameFor,
-	FileSetList_ReadRange, FileSetList_SizeOf, FileSetList_Matches, FileSetList_Reset};
+	FileSetList_ReadRange, FileSetList_SizeOf, FileSetList_Matches, FileSetList_Reset, FileSetList_Locate};
 
 /* "80 38": register the pseudo archive `name` that stands for the
  * NULL-terminated `list` of archive files.  1 when registered, 0 when the

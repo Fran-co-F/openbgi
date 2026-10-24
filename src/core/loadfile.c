@@ -63,6 +63,18 @@ int Arc_Exists(const char* arcPath, const char* name)
 	return ArcMgr_Exists(gArcMgr, arcPath, name);
 }
 
+int Arc_Locate(const char* arc, const char* name, char* path, uint32_t* off, uint32_t* size)
+{
+	char full[0x104];
+	PathJoin(full, gBaseDir, arc);
+	if(ArcMgr_Locate(gArcMgr, full, name, path, off, size))
+		return 1;
+	if(!DriveReady(gAltDir))
+		return 0;
+	PathJoin(full, gAltDir, arc);
+	return ArcMgr_Locate(gArcMgr, full, name, path, off, size);
+}
+
 static uint32_t LoadFileDecoded(void* buf, const char* arc, const char* name);
 static uint32_t GetFileSizeDecoded(const char* arc, const char* name);
 

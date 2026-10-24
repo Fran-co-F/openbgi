@@ -275,6 +275,64 @@ int MovieFx_Start(const char* path, int x, int y, int w, int h, int32_t volume, 
 	return 1;
 }
 
+int MovieFx_StartRange(const char* path, uint32_t off, uint32_t size, int x, int y, int w, int h, int32_t volume, int32_t* lengthMs)
+{
+	MovieFx_t* fx;
+	char native[0x400], vsize[64], rate[32], in[0x500];
+	int i;
+	MovieFx_Stop();
+	if(w <= 0 || h <= 0 || (size_t)w * (size_t)h > 0x1000000u || size == 0 || OS_FileAttrs(path) == OS_INVALID_ATTRS)
+		return 0;
+	OS_PathNative(path, native, sizeof native);
+	fx = (MovieFx_t*)calloc(1, sizeof *fx);
+	fx->x = x;
+	fx->y = y;
+	fx->w = w;
+	fx->h = h;
+	fx->shown = -1;
+	fx->gain16 = GainOf(volume);
+	snprintf(in, sizeof in, "subfile,,start,%u,end,%u,,:%s", off, off + size, native);
+	Probe(in, &fx->fps, &fx->lengthMs);
+	snprintf(vsize, sizeof vsize, "scale=%d:%d", w, h);
+	snprintf(rate, sizeof rate, "%.4f", fx->fps);
+	{
+		const char* argv[] = {"ffmpeg", "-v", "quiet", "-nostdin", "-i", in, "-an", "-f", "rawvideo", "-pix_fmt", "bgra",
+			"-vf", vsize, "-r", rate, "pipe:1", NULL};
+		fx->video = OS_PipeProcStart(argv);
+	}
+	if(!fx->video)
+	{
+		static int said; // once per run: the usual cause is no ffmpeg on the PATH
+		if(!said++)
+			fprintf(stderr, "bgi: ffmpeg could not be started for \"%s\": the movie is skipped (ffmpeg and ffprobe must be on the PATH or next to the executable)\n", native);
+		free(fx);
+		return 0;
+	}
+	for(i = 0; i < FX_FRAMES; i++)
+		fx->frame[i] = (uint8_t*)malloc((size_t)w * (size_t)h * 4);
+	if(Wm_MixRunning())
+	{
+		const char* argv[] = {"ffmpeg", "-v", "quiet", "-nostdin", "-i", in, "-vn", "-f", "s16le", "-ac", "2", "-ar",
+			"44100", "pipe:1", NULL};
+		fx->audio = OS_PipeProcStart(argv);
+		if(fx->audio)
+		{
+			fx->ring = (int16_t*)calloc((size_t)FX_RING_FRAMES * 2, sizeof(int16_t));
+			fx->hasAudio = 1;
+		}
+	}
+	if(!fx->audio)
+		fx->aEnd = 1;
+	fx->vThread = OS_ThreadStart(VideoThread, fx, 0);
+	if(fx->audio)
+		fx->aThread = OS_ThreadStart(AudioThread, fx, 0);
+	if(fx->hasAudio)
+		Wm_SetExternalMix(MixTap, fx);
+	gFx = fx;
+	*lengthMs = fx->lengthMs;
+	return 1;
+}
+
 void MovieFx_Stop(void)
 {
 	MovieFx_t* fx = gFx;

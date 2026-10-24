@@ -152,3 +152,16 @@ void Movie_OnEvent(int completed)
 		Window_Repaint();
 	}
 }
+
+/* Movie_Play for an entry of an archive: the OS layer's player is not tried
+ * (it opens files, not ranges), ffmpeg reads the range itself. */
+int Movie_PlayArc(int32_t* outLength, const char* path, uint32_t off, uint32_t size, int x, int y, int w, int h)
+{
+	Movie_Stop();
+	if(!MovieFx_StartRange(path, off, size, x, y, w, h, gMovieVolume, outLength))
+		return 0;
+	gMovieFx = 1;
+	gMovieLoaded = 1;
+	gMoviePlaying = 1;
+	return 1;
+}

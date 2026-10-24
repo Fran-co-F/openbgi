@@ -83,6 +83,7 @@ typedef struct FileSetVtbl
 	uint32_t (*sizeOf)(FileSet_t* s, const char* name);                                            // the stored size, or ARC_ERR_NOT_FOUND
 	int (*matches)(FileSet_t* s, const char* arcPath);                                             // 1 when this node is the archive `arcPath`
 	uint32_t (*reset)(FileSet_t* s, const char* arcPath);                                          // 1.573 on: drop the index of `arcPath` here or further down the chain; 0, or ARC_ERR_OPEN
+	int (*locate)(FileSet_t* s, const char* name, char* path, uint32_t* off, uint32_t* size);
 } FileSetVtbl_t;
 
 struct FileSet
@@ -114,7 +115,8 @@ uint32_t ArcMgr_Read(FileSet_t* mgr, void* dst, const char* arc, const char* nam
 uint32_t ArcMgr_ReadRange(FileSet_t* mgr, void* dst, const char* arc, const char* name, uint32_t off, uint32_t size); // size 0: the whole entry; dst NULL: the size only
 uint32_t ArcMgr_SizeOf(FileSet_t* mgr, const char* arc, const char* name);                                            // the stored size, or ARC_ERR_NOT_FOUND / ARC_ERR_OPEN
 int ArcMgr_Register(FileSet_t* mgr, FileSet_t* other);                                                                // append; 1 when taken over, 0 when a node of that name exists
-uint32_t ArcMgr_Reset(FileSet_t* mgr, const char* arc);                                                               // "81 3C": the archive's index is read again on its next use; 0, or ARC_ERR_OPEN when no node is or can become it
+uint32_t ArcMgr_Reset(FileSet_t* mgr, const char* arc);
+int ArcMgr_Locate(FileSet_t* mgr, const char* arc, const char* name, char* path, uint32_t* off, uint32_t* size); // where the entry lies: the archive file holding it (a list: the member), the absolute offset and the stored size; 1 when found                                                               // "81 3C": the archive's index is read again on its next use; 0, or ARC_ERR_OPEN when no node is or can become it
 
 FileSet_t* FileSetList_New(void);                        // an empty list archive
 int FileSetList_SetName(FileSet_t* s, const char* name); // the pseudo archive name; 0 for NULL
@@ -220,6 +222,7 @@ extern char gEmptyPath[8];
 void RetryPrompt(const char* msg);                                   // the loader's "insert the disc" prompt; throws when there is no disc or the user aborts
 uint32_t Arc_Read(void* dst, const char* arcPath, const char* name); // ArcMgr_Read on gArcMgr after the name-length check
 int Arc_Exists(const char* arcPath, const char* name);               // ArcMgr_Exists on gArcMgr after the name-length check
+int Arc_Locate(const char* arc, const char* name, char* path, uint32_t* off, uint32_t* size); // ArcMgr_Locate for an archive named as the scripts do (base directory, then the alternative one); 1 when found
 
 //  --- save files ----------------------------------------
 extern int gSaveEncode;                       // "80 74": scramble the save files (the default)
